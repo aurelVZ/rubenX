@@ -1,0 +1,210 @@
+'math parser
+ 
+
+Function VisibleToken(STRING s) as string
+  Select s
+    Case CR
+'      s = "newline"
+    Case LF
+    '  s = "newline"
+    Case ""
+    '  s = "nothing"
+  End Select
+  Return s
+End Function
+
+';Cleanup then end
+Function Finish()
+  perr=1
+Return 0
+End Function
+
+';Report an error
+Function Error(string s)
+  print "Error: " + s + "."
+End Function
+
+';Report an error and abort
+Function Abort(STRING s)
+  Error(s)
+  Finish()
+End Function
+
+';Report what was expected
+Function Expected(STRING expect)
+  Abort("Expected: " + expect + ", got '" + VisibleToken(Look) + "'")
+Return 0
+End Function
+
+';Read a character into Look
+Goto GetChar_End
+sub GetChar
+'print "SUB->GETCHAR"
+  Look = Mid (Stream ,StreamPos,1)
+  'print "LOOK:" + Look
+  StreamPos =  StreamPos + 1
+  Return 
+end sub
+GetChar_End:
+
+
+';Match a specific input character
+Function Match(STRING s)
+'print "MATCH<s>" + s
+  If Look <> s
+'print "MATCH<Look>" + Look 
+    Expected("'"+ s +"'")
+  Else
+	'print "MATCH<else>"
+    Gosub getchar
+  End If
+End Function
+
+';Get a number-----------------------------------------------------
+Function GetNum() As Float
+
+  STRING Temp
+  
+    If Asc(look) > 47 and Asc(look) < 58  ' read chars as numbers
+       'print "need number"
+    End if
+
+	While (Asc(Look) > 47 And Asc(Look) < 58) Or Asc(Look) = 46' dec.point
+		Temp = Temp + Look
+		Gosub getchar
+         
+	Wend
+       
+  Return Val(Temp)
+End Function
+
+';Get variable ----------------------------------------------------------
+Function GetVar() as float
+'print "SUB->GETVAR"
+  STRING Temp,func,expr
+  FLOAT tempv
+  
+    'If Asc(look) < 96 and Asc(look) > 123  ' read chars as variable
+      ' print ("need variable")
+    'end if
+
+	While (Asc(Look) > 64 And Asc(Look) < 95) OR  (Asc(Look) > 96 And Asc(Look) < 123) OR  (Asc(Look) > 47 And Asc(Look) < 58)                             '; Works
+		Temp = Temp + Look
+		Gosub getchar
+         'print "GetVar-TEMP:" + Temp  
+        'IF         
+	Wend
+'test variable value .........GetIntValue (byref vName as string) As FLOAT
+'print "LOOK:" + Look
+ IF Look <> "(" 
+    If instr(Temp,"[") = 0
+	tempv = GetIntValue(Temp) 'not Array
+    Else  ' is array
+    ' print "TEMP:is array:" + Temp
+     tempv = GetArrayValue(Temp)
+    End if
+	'Return tempv
+ END IF
+
+'expected function..................
+IF Look = "("
+ 'temp = sin(90)
+'print "fTemp:" + temp   ' sin
+ Gosub getchar  'skip bracket (  Look +1
+While Look <> ""  ' ->...)
+  expr = expr + Look
+  Gosub getchar
+Wend
+'print "F->TEMP:" + expr  ' 90
+ tempv=GetFunc(temp,expr)
+ 'Return tempv
+ Gosub getchar
+END IF
+'...................................
+
+Return tempv
+ 
+End Function
+
+Declare function Expression() as float
+'==============================================================
+Function Factor() as float
+
+'print "SUB->FACTOR"
+  FLOAT Value
+'get number ----------------------------
+  If Asc(Look) > 47 And Asc(Look) < 58 
+    Return GetNum()
+  End if
+'get variable --------------------------  
+  If Asc(look) > 96 and asc(look) < 123 OR (Asc(Look) > 64 And Asc(Look) < 91)
+     return GetVar() 
+  End if
+'get parens ---------------------------
+If look <> ""
+    Match("(")
+  Value = Expression()
+    Match(")") 
+End If
+
+  Return Value
+End Function
+'==============================================================
+Function Term() as float
+  FLOAT Value,modV
+  Value = Factor()
+  While (Look = "%" ) Or (Look = "*" ) Or (Look = "/")
+'modulus -> integer division
+    If Look = "%"
+      Gosub getchar  
+      modV=Factor()
+	  Value = round(Value \modV)         
+    End If
+    If Look = "*"
+      Gosub getchar
+      Value = Value * Factor()
+    End If
+    If Look = "/"
+      Gosub getchar
+      Value = Value / Factor()
+    End If
+
+  Wend
+  Return Value
+End Function
+
+Function Expression() as float
+ FLOAT Value
+  If (Look = "-")
+    Gosub getchar
+    Value = -(Term())
+  Else
+    Value = Term()
+  End If
+
+  While (Look = "+") Or (Look = "-")
+    If Look = "+"
+      Gosub getchar
+      Value = Value + Term()
+    Else
+      Gosub getchar
+      Value = Value - Term()
+    End If
+  Wend
+
+  Return Value
+End Function
+
+Function EvaLLine(byval s as string) as float
+  Stream = Replace(s, " ", "")
+  StreamPos = 1
+  Gosub getchar
+'string out
+Float Tempv
+  Tempv = Expression()
+  'If StreamPos < Len(Stream) '; Error check, you
+    'Expected("nothing")      '; can remove them if you don't
+  'EndIf 
+  'out=str(Temp)                   '; need the check
+  Return Tempv
+End Function
